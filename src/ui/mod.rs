@@ -729,6 +729,42 @@ fn render(f: &mut Frame, app: &mut App) {
     }
 }
 
+/// Word-wrap `text` to `width` columns, returning one string per display row.
+fn word_wrap(text: &str, width: usize) -> Vec<String> {
+    if width == 0 {
+        return vec![text.to_string()];
+    }
+    let mut rows = Vec::new();
+    for segment in text.split('\n') {
+        if segment.is_empty() {
+            rows.push(String::new());
+            continue;
+        }
+        let mut remaining = segment;
+        while !remaining.is_empty() {
+            if remaining.chars().count() <= width {
+                rows.push(remaining.to_string());
+                break;
+            }
+            // Find the last space within `width` chars
+            let byte_boundary = remaining
+                .char_indices()
+                .take(width + 1)
+                .last()
+                .map(|(i, _)| i)
+                .unwrap_or(remaining.len());
+            let slice = &remaining[..byte_boundary];
+            let split = slice.rfind(' ').unwrap_or(byte_boundary);
+            rows.push(remaining[..split].trim_end().to_string());
+            remaining = remaining[split..].trim_start_matches(' ');
+        }
+    }
+    if rows.is_empty() {
+        rows.push(String::new());
+    }
+    rows
+}
+
 fn render_chat(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .borders(Borders::ALL)
@@ -743,11 +779,31 @@ fn render_chat(f: &mut Frame, app: &App, area: Rect) {
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let visible_height = inner.height as usize;
-    let lines = &app.ui.chat_lines;
-    let total = lines.len();
+    let width = inner.width as usize;
+    let prefix_len = 5usize; // "You: " / "AI:  " / "  >> "
 
-    // Calculate which lines to show
+    // Expand each chat message into wrapped display rows
+    let mut display: Vec<(String, Color)> = Vec::new();
+    for line in &app.ui.chat_lines {
+        let (prefix, color) = match line.role.as_str() {
+            "user" => ("You: ", Color::Cyan),
+            "assistant" => ("AI:  ", Color::Green),
+            _ => ("  >> ", Color::Yellow),
+        };
+        let first_line = format!("{}{}", prefix, line.content);
+        let indent = " ".repeat(prefix_len);
+        let rows = word_wrap(&first_line, width);
+        for (i, row) in rows.into_iter().enumerate() {
+            if i == 0 {
+                display.push((row, color));
+            } else {
+                display.push((format!("{}{}", indent, row), color));
+            }
+        }
+    }
+
+    let total = display.len();
+    let visible_height = inner.height as usize;
     let scroll = app.ui.scroll_offset;
     let start = if total > visible_height {
         (total - visible_height).saturating_sub(scroll)
@@ -755,26 +811,18 @@ fn render_chat(f: &mut Frame, app: &App, area: Rect) {
         0
     };
     let end = (start + visible_height).min(total);
-    let visible = &lines[start..end];
 
-    let mut list_items: Vec<ListItem> = Vec::new();
-    for line in visible {
-        let (prefix, color) = match line.role.as_str() {
-            "user" => ("You: ", Color::Cyan),
-            "assistant" => ("AI:  ", Color::Green),
-            _ => ("  >> ", Color::Yellow),
-        };
-        // Word-wrap manually using ratatui Wrap
-        let content = format!("{}{}", prefix, line.content);
-        let item = ListItem::new(Line::from(vec![Span::styled(
-            content,
-            Style::default().fg(color),
-        )]));
-        list_items.push(item);
-    }
+    let list_items: Vec<ListItem> = display[start..end]
+        .iter()
+        .map(|(text, color)| {
+            ListItem::new(Line::from(Span::styled(
+                text.clone(),
+                Style::default().fg(*color),
+            )))
+        })
+        .collect();
 
-    let list = List::new(list_items);
-    f.render_widget(list, inner);
+    f.render_widget(List::new(list_items), inner);
 }
 
 fn render_status(f: &mut Frame, app: &App, area: Rect) {

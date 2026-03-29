@@ -1,4 +1,5 @@
 pub mod anthropic;
+pub mod claude_code;
 pub mod ollama;
 pub mod openai_compat;
 
@@ -49,22 +50,22 @@ pub struct ModelInfo {
 pub fn all_known_models() -> Vec<ModelInfo> {
     vec![
         ModelInfo {
-            id: "claude-opus-4-5".to_string(),
-            provider: "anthropic".to_string(),
-            display_name: "Anthropic claude-opus-4-5".to_string(),
-            configured: false,
+            id: "claude-opus-4-6".to_string(),
+            provider: "claude_code".to_string(),
+            display_name: "Claude Code claude-opus-4-6".to_string(),
+            configured: claude_code::ClaudeCodeProvider::is_available(),
         },
         ModelInfo {
             id: "claude-sonnet-4-6".to_string(),
-            provider: "anthropic".to_string(),
-            display_name: "Anthropic claude-sonnet-4-6".to_string(),
-            configured: false,
+            provider: "claude_code".to_string(),
+            display_name: "Claude Code claude-sonnet-4-6".to_string(),
+            configured: claude_code::ClaudeCodeProvider::is_available(),
         },
         ModelInfo {
             id: "claude-haiku-4-5".to_string(),
-            provider: "anthropic".to_string(),
-            display_name: "Anthropic claude-haiku-4-5".to_string(),
-            configured: false,
+            provider: "claude_code".to_string(),
+            display_name: "Claude Code claude-haiku-4-5".to_string(),
+            configured: claude_code::ClaudeCodeProvider::is_available(),
         },
         ModelInfo {
             id: "grok-4".to_string(),
@@ -112,6 +113,9 @@ pub fn build_provider(
     endpoint: Option<&str>,
 ) -> Result<Box<dyn LlmProvider>> {
     match provider {
+        "claude_code" => Ok(Box::new(claude_code::ClaudeCodeProvider::new(
+            model_id.to_string(),
+        ))),
         "anthropic" => Ok(Box::new(anthropic::AnthropicProvider::new(
             api_key.unwrap_or("").to_string(),
             model_id.to_string(),

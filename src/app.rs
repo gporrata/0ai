@@ -202,8 +202,20 @@ impl App {
             };
 
             // Get API key from db
-            let api_key = db.get_model(&mid).ok().flatten().and_then(|m| m.api_key);
-            let endpoint = db.get_model(&mid).ok().flatten().and_then(|m| m.endpoint);
+            let stored = db.get_model(&mid).ok().flatten();
+            let api_key = stored.as_ref().and_then(|m| m.api_key.clone());
+            let endpoint = stored.as_ref().and_then(|m| m.endpoint.clone());
+
+            // Providers that require an API key
+            if prov != "ollama" && prov != "claude_code" && api_key.is_none() {
+                let _ = tx
+                    .send(AppEvent::LlmError(format!(
+                        "No API key for {}. Use /model to configure it.",
+                        mid
+                    )))
+                    .await;
+                return;
+            }
 
             let provider = match build_provider(
                 &mid,
@@ -358,10 +370,12 @@ impl App {
         all_known_models()
             .into_iter()
             .map(|mut m| {
-                if m.provider == "ollama" {
-                    m.configured = true;
+                if m.provider == "ollama" || m.provider == "claude_code" {
+                    // no API key needed — configured status already set by all_known_models()
                 } else if let Some(&has_key) = stored_keys.get(&m.id) {
                     m.configured = has_key;
+                } else {
+                    m.configured = false;
                 }
                 m
             })
