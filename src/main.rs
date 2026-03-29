@@ -42,6 +42,9 @@ async fn async_main(db: Database) -> Result<()> {
     // Start A2A server now that we're in async context
     app.start_a2a_server().await;
 
+    // Connect configured MCP servers
+    app.connect_mcp_servers().await;
+
     // Create a default ephemeral session
     let ephemeral_id = uuid::Uuid::new_v4().to_string();
     let session = db::Session {

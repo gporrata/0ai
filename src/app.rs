@@ -546,10 +546,39 @@ impl App {
 
     pub fn save_mcp_server(&self, server: McpServer) {
         let _ = self.db.save_mcp_server(&server);
+        let mgr = Arc::clone(&self.mcp_manager);
+        let name = server.name.clone();
+        let command = server.command.clone();
+        let args = server.args.clone();
+        let env = server.env.clone();
+        tokio::spawn(async move {
+            let mut mgr = mgr.lock().await;
+            if let Err(e) = mgr.connect_server(&name, &command, &args, &env).await {
+                tracing::warn!("MCP connect '{}': {}", name, e);
+            }
+        });
     }
 
     pub fn delete_mcp_server(&self, name: &str) {
         let _ = self.db.delete_mcp_server(name);
+        let mgr = Arc::clone(&self.mcp_manager);
+        let name = name.to_string();
+        tokio::spawn(async move {
+            mgr.lock().await.disconnect_server(&name);
+        });
+    }
+
+    pub async fn connect_mcp_servers(&self) {
+        let servers = self.db.list_mcp_servers().unwrap_or_default();
+        let mut mgr = self.mcp_manager.lock().await;
+        for server in servers {
+            if let Err(e) = mgr
+                .connect_server(&server.name, &server.command, &server.args, &server.env)
+                .await
+            {
+                tracing::warn!("MCP connect '{}': {}", server.name, e);
+            }
+        }
     }
 
     // ── Agent sessions ────────────────────────────────────────────────────────

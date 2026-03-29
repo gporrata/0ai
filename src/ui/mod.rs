@@ -345,43 +345,88 @@ fn cmd_session_select(app: &mut App) -> Result<()> {
 
 fn cmd_mcp_list(app: &mut App) -> Result<()> {
     let servers = app.list_mcp_servers();
-    let mut items: Vec<String> = servers
-        .iter()
-        .map(|s| format!("{} — {}", s.name, s.command))
-        .collect();
-    items.push("+ Add MCP server...".to_string());
+    let total = servers.len() + 1; // +1 for the Add entry
+    let mut selected = 0usize;
 
-    let selection = Select::with_theme(&ColorfulTheme::default())
-        .with_prompt("MCP servers — select existing to delete, last item to add (Esc to cancel)")
-        .items(&items)
-        .default(0)
-        .interact_opt()?;
+    let term = console::Term::stdout();
+    let lines = mcp_draw(&term, &servers, selected)?;
 
-    if let Some(i) = selection {
-        if i < servers.len() {
-            let confirmed = Confirm::with_theme(&ColorfulTheme::default())
-                .with_prompt(format!("Delete '{}'?", servers[i].name))
-                .default(false)
-                .interact()?;
-            if confirmed {
-                app.delete_mcp_server(&servers[i].name);
-                println!(
-                    "{} Deleted MCP server: {}",
-                    style(">>").yellow(),
-                    servers[i].name
-                );
+    loop {
+        match term.read_key()? {
+            console::Key::ArrowUp => {
+                term.clear_last_lines(lines)?;
+                selected = selected.saturating_sub(1);
+                mcp_draw(&term, &servers, selected)?;
             }
-        } else {
-            let entry: String = Input::with_theme(&ColorfulTheme::default())
-                .with_prompt("MCP entry (name command [args] [KEY=VALUE])")
-                .interact_text()?;
-            if !entry.is_empty() {
-                parse_and_save_mcp(app, &entry);
+            console::Key::ArrowDown => {
+                term.clear_last_lines(lines)?;
+                selected = (selected + 1).min(total - 1);
+                mcp_draw(&term, &servers, selected)?;
             }
+            console::Key::Enter => {
+                term.clear_last_lines(lines)?;
+                if selected < servers.len() {
+                    let s = &servers[selected];
+                    println!("  name:    {}", s.name);
+                    println!("  command: {}", s.command);
+                    if !s.args.is_empty() {
+                        println!("  args:    {}", s.args.join(" "));
+                    }
+                    if !s.env.is_empty() {
+                        let pairs: Vec<String> =
+                            s.env.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
+                        println!("  env:     {}", pairs.join(" "));
+                    }
+                } else {
+                    let entry: String = Input::with_theme(&ColorfulTheme::default())
+                        .with_prompt("MCP entry (name command [args] [KEY=VALUE])")
+                        .interact_text()?;
+                    if !entry.is_empty() {
+                        parse_and_save_mcp(app, &entry);
+                    }
+                }
+                break;
+            }
+            console::Key::Del => {
+                if selected < servers.len() {
+                    term.clear_last_lines(lines)?;
+                    app.delete_mcp_server(&servers[selected].name);
+                    println!("Deleted MCP server: {}", servers[selected].name);
+                    break;
+                }
+            }
+            console::Key::Escape => {
+                term.clear_last_lines(lines)?;
+                break;
+            }
+            _ => {}
         }
     }
 
     Ok(())
+}
+
+fn mcp_draw(term: &console::Term, servers: &[crate::db::McpServer], selected: usize) -> Result<usize> {
+    let mut lines = 0;
+    term.write_line(&style("MCP servers  ↑↓ navigate · Enter view · Del delete · Esc cancel").dim().to_string())?;
+    lines += 1;
+    for (i, s) in servers.iter().enumerate() {
+        let label = format!("{} — {}", s.name, s.command);
+        if i == selected {
+            term.write_line(&format!("  {} {}", style(">").cyan(), style(&label).bold()))?;
+        } else {
+            term.write_line(&format!("    {}", label))?;
+        }
+        lines += 1;
+    }
+    let add_label = "+ Add MCP server...";
+    if selected == servers.len() {
+        term.write_line(&format!("  {} {}", style(">").cyan(), style(add_label).bold()))?;
+    } else {
+        term.write_line(&format!("    {}", add_label))?;
+    }
+    lines += 1;
+    Ok(lines)
 }
 
 // ── Polo list ─────────────────────────────────────────────────────────────────
