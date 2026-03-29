@@ -27,6 +27,7 @@ I want to create a configurable agentic ai cli written in rust.
   - esc to exit interaction
 
 # Named sessions management
+- /forget - wipes all message history for the current session (in memory and database). the session itself is kept.
 - upon start the tool simply starts a new session and deletes the session on exit
 - /session -
   - lists active sessions interactively. one entry for all active sessions, one entry to create new session
@@ -75,4 +76,4 @@ I want to create a configurable agentic ai cli written in rust.
 
 # Prompting
 - The prompt character is colored `#03a1fc`. By default it is `>` (plain ASCII).
-- `/nerd` switches the prompt to a Nerd Font glyph (U+F09E4); `/nonerd` reverts it to `>`. Both settings persist across sessions.
+- `/nerd` switches the prompt to a Nerd Font glyph (default U+F0EC); `/nerd {hexcode}` sets a specific glyph (e.g. `/nerd f0b0`); `/nonerd` reverts to `>`. Both the enabled state and chosen glyph persist across sessions.

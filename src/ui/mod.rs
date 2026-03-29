@@ -81,8 +81,8 @@ pub fn run(app: &mut App) -> Result<()> {
 
     let stdin = io::stdin();
     loop {
-        let prompt_char = prompt_char(app.nerd_fonts);
-        print!("{} ", prompt_char);
+        let prompt_char = prompt_char(app.nerd_fonts, app.nerd_char);
+        print!("{}", prompt_char);
         io::stdout().flush()?;
 
         let mut input = String::new();
@@ -140,7 +140,8 @@ fn wait_for_responses(app: &mut App) -> Result<()> {
                 .with_prompt(format!("run '{}' — {}?", command, reason))
                 .default(false)
                 .interact()?;
-            let _ = console::Term::stdout().clear_last_lines(1);
+            print!("\x1b[1A\x1b[2K");
+            let _ = io::stdout().flush();
             if confirmed {
                 app.ui.shells_pending += 1;
                 app.ui.response_complete = false;
@@ -199,10 +200,26 @@ fn dispatch_command(cmd: &str, rest: &str, app: &mut App) -> Result<Option<bool>
         Some("mcp") => {
             cmd_mcp_list(app)?;
         }
+        Some("forget") => {
+            app.forget_session_history();
+            println!("Session history cleared.");
+        }
         Some("nerd") => {
+            if !rest.is_empty() {
+                match u32::from_str_radix(rest.trim(), 16).ok().and_then(char::from_u32) {
+                    Some(c) => {
+                        app.nerd_char = c;
+                        let _ = app.db.set_config("nerd_char", &rest.trim().to_lowercase());
+                    }
+                    None => {
+                        println!("Invalid hex codepoint: {}", rest.trim());
+                        return Ok(Some(false));
+                    }
+                }
+            }
             app.nerd_fonts = true;
             let _ = app.db.set_config("nerd_fonts", &"true".to_string());
-            println!("{} Nerd Font prompt enabled.", style(">>").yellow());
+            println!("Nerd Font prompt enabled (U+{:X}).", app.nerd_char as u32);
         }
         Some("nonerd") => {
             app.nerd_fonts = false;
@@ -226,7 +243,6 @@ fn dispatch_command(cmd: &str, rest: &str, app: &mut App) -> Result<Option<bool>
             );
         }
     }
-    let _ = rest;
     Ok(Some(false))
 }
 
@@ -447,10 +463,9 @@ fn parse_and_save_mcp(app: &mut App, input: &str) {
 
 // ── Prompt ────────────────────────────────────────────────────────────────────
 
-fn prompt_char(nerd: bool) -> String {
-    // #e600e6 via ANSI true-color escape
+fn prompt_char(nerd: bool, nerd_char: char) -> String {
     let color_on = "\x1b[38;2;3;161;252m";
     let color_off = "\x1b[0m";
-    let ch = if nerd { "\u{f09e4}" } else { ">" };
-    format!("{}{}{}", color_on, ch, color_off)
+    let ch = if nerd { nerd_char.to_string() } else { ">".to_string() };
+    format!("{}{}{} ", color_on, ch, color_off)
 }

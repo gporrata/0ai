@@ -32,6 +32,7 @@ pub struct App {
     // Yolo mode: auto-approve shell commands until next LLM message is sent
     pub yolo: bool,
     pub nerd_fonts: bool,
+    pub nerd_char: char,
 }
 
 pub enum AppEvent {
@@ -73,6 +74,7 @@ impl App {
             message_count: 0,
             yolo: false,
             nerd_fonts: false,
+            nerd_char: '\u{f0ec}',
         }
     }
 
@@ -88,6 +90,13 @@ impl App {
         // Load nerd fonts setting
         if let Ok(Some(v)) = self.db.get_config::<String>("nerd_fonts") {
             self.nerd_fonts = v == "true";
+        }
+        if let Ok(Some(v)) = self.db.get_config::<String>("nerd_char") {
+            if let Ok(n) = u32::from_str_radix(&v, 16) {
+                if let Some(c) = char::from_u32(n) {
+                    self.nerd_char = c;
+                }
+            }
         }
 
         // Clean up ephemeral sessions from previous runs
@@ -430,6 +439,14 @@ impl App {
         self.ui.chat_lines.clear();
         for msg in &self.session_messages {
             self.ui.push_chat(&msg.role, &msg.content);
+        }
+    }
+
+    pub fn forget_session_history(&mut self) {
+        self.session_messages.clear();
+        self.ui.chat_lines.clear();
+        if let Some(ref id) = self.current_session_id.clone() {
+            let _ = self.db.delete_messages_for_session(id);
         }
     }
 
