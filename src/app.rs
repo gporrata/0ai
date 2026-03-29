@@ -775,6 +775,7 @@ pub async fn run_shell_command_safe(command: &str) -> (String, i32) {
             let code = out.status.code().unwrap_or(-1);
             (combined, code)
         }
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => ("".to_string(), 0),
         Err(e) => (format!("Failed to run command: {}", e), -1),
     }
 }
