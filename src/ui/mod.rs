@@ -43,6 +43,7 @@ pub enum Modal {
     InputPrompt(InputPromptKind),
     ApiKeyPrompt(String), // model_id
     Help,
+    ShellConfirm { command: String, reason: String },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -205,6 +206,29 @@ fn handle_key(key: KeyEvent, app: &mut App) -> Result<bool> {
                 KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q')
             ) {
                 app.ui.modal = Modal::None;
+            }
+            Ok(false)
+        }
+        Modal::ShellConfirm { command, reason: _ } => {
+            let command = command.clone();
+            match key.code {
+                KeyCode::Enter | KeyCode::Char('y') => {
+                    app.ui.modal = Modal::None;
+                    let tx = app.response_tx.clone();
+                    tokio::spawn(async move {
+                        let output = crate::app::run_shell_command_safe(&command).await;
+                        let _ = tx.send(crate::app::AppEvent::ShellResult {
+                            command,
+                            output: output.0,
+                            exit_code: output.1,
+                        }).await;
+                    });
+                }
+                KeyCode::Esc | KeyCode::Char('n') => {
+                    app.ui.push_chat("system", "Shell command cancelled.");
+                    app.ui.modal = Modal::None;
+                }
+                _ => {}
             }
             Ok(false)
         }
@@ -714,6 +738,9 @@ fn render(f: &mut Frame, app: &mut App) {
             let title = format!("API Key for {} (input hidden)", model_id);
             render_input_prompt(f, app, &title, true, size);
         }
+        Modal::ShellConfirm { command, reason } => {
+            render_shell_confirm(f, command, reason, size);
+        }
     }
 
     // Autocomplete popup when typing a command
@@ -1164,4 +1191,41 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
+}
+
+fn render_shell_confirm(f: &mut Frame, command: &str, reason: &str, area: Rect) {
+    let popup = centered_rect(70, 30, area);
+    f.render_widget(Clear, popup);
+
+    let content = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  Reason: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(reason, Style::default().fg(Color::Yellow)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  $ ", Style::default().fg(Color::Green)),
+            Span::styled(command, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(
+                "  [Enter/y] Run    [Esc/n] Cancel",
+                Style::default().fg(Color::DarkGray),
+            ),
+        ]),
+    ];
+
+    let para = Paragraph::new(content)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Rgb(0, 0, 77)))
+                .title_style(Style::default().fg(Color::Rgb(255, 255, 204)))
+                .title(" Run command? "),
+        )
+        .wrap(Wrap { trim: false });
+
+    f.render_widget(para, popup);
 }

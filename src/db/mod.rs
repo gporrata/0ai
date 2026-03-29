@@ -1,8 +1,7 @@
 use anyhow::{Context, Result};
 use redb::{Database as RedbDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 // Table definitions
 pub const SESSIONS: TableDefinition<&str, &[u8]> = TableDefinition::new("sessions");
@@ -76,8 +75,7 @@ impl Database {
     fn init_tables(&self) -> Result<()> {
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let write_txn = db.begin_write()?;
         {
             write_txn.open_table(SESSIONS)?;
@@ -97,8 +95,7 @@ impl Database {
         let data = serde_json::to_vec(session)?;
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let write_txn = db.begin_write()?;
         {
             let mut table = write_txn.open_table(SESSIONS)?;
@@ -111,8 +108,7 @@ impl Database {
     pub fn get_session(&self, id: &str) -> Result<Option<Session>> {
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let read_txn = db.begin_read()?;
         let table = read_txn.open_table(SESSIONS)?;
         match table.get(id)? {
@@ -124,8 +120,7 @@ impl Database {
     pub fn list_sessions(&self) -> Result<Vec<Session>> {
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let read_txn = db.begin_read()?;
         let table = read_txn.open_table(SESSIONS)?;
         let mut sessions = Vec::new();
@@ -140,8 +135,7 @@ impl Database {
     pub fn delete_session(&self, id: &str) -> Result<()> {
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let write_txn = db.begin_write()?;
         {
             let mut table = write_txn.open_table(SESSIONS)?;
@@ -160,8 +154,7 @@ impl Database {
         let data = serde_json::to_vec(value)?;
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let write_txn = db.begin_write()?;
         {
             let mut table = write_txn.open_table(CONFIG)?;
@@ -174,8 +167,7 @@ impl Database {
     pub fn get_config<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<Option<T>> {
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let read_txn = db.begin_read()?;
         let table = read_txn.open_table(CONFIG)?;
         match table.get(key)? {
@@ -187,8 +179,7 @@ impl Database {
     pub fn delete_config(&self, key: &str) -> Result<()> {
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let write_txn = db.begin_write()?;
         {
             let mut table = write_txn.open_table(CONFIG)?;
@@ -204,8 +195,7 @@ impl Database {
         let data = serde_json::to_vec(model)?;
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let write_txn = db.begin_write()?;
         {
             let mut table = write_txn.open_table(MODELS)?;
@@ -218,8 +208,7 @@ impl Database {
     pub fn get_model(&self, id: &str) -> Result<Option<ModelConfig>> {
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let read_txn = db.begin_read()?;
         let table = read_txn.open_table(MODELS)?;
         match table.get(id)? {
@@ -231,8 +220,7 @@ impl Database {
     pub fn list_models(&self) -> Result<Vec<ModelConfig>> {
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let read_txn = db.begin_read()?;
         let table = read_txn.open_table(MODELS)?;
         let mut models = Vec::new();
@@ -247,8 +235,7 @@ impl Database {
     pub fn delete_model(&self, id: &str) -> Result<()> {
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let write_txn = db.begin_write()?;
         {
             let mut table = write_txn.open_table(MODELS)?;
@@ -264,8 +251,7 @@ impl Database {
         let data = serde_json::to_vec(server)?;
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let write_txn = db.begin_write()?;
         {
             let mut table = write_txn.open_table(MCP_SERVERS)?;
@@ -278,8 +264,7 @@ impl Database {
     pub fn list_mcp_servers(&self) -> Result<Vec<McpServer>> {
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let read_txn = db.begin_read()?;
         let table = read_txn.open_table(MCP_SERVERS)?;
         let mut servers = Vec::new();
@@ -294,8 +279,7 @@ impl Database {
     pub fn delete_mcp_server(&self, name: &str) -> Result<()> {
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let write_txn = db.begin_write()?;
         {
             let mut table = write_txn.open_table(MCP_SERVERS)?;
@@ -311,8 +295,7 @@ impl Database {
         let data = serde_json::to_vec(agent)?;
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let write_txn = db.begin_write()?;
         {
             let mut table = write_txn.open_table(AGENT_SESSIONS)?;
@@ -325,8 +308,7 @@ impl Database {
     pub fn list_agent_sessions(&self) -> Result<Vec<AgentSession>> {
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let read_txn = db.begin_read()?;
         let table = read_txn.open_table(AGENT_SESSIONS)?;
         let mut sessions = Vec::new();
@@ -341,8 +323,7 @@ impl Database {
     pub fn delete_agent_session(&self, id: &str) -> Result<()> {
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let write_txn = db.begin_write()?;
         {
             let mut table = write_txn.open_table(AGENT_SESSIONS)?;
@@ -358,8 +339,7 @@ impl Database {
         let data = serde_json::to_vec(msg)?;
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let write_txn = db.begin_write()?;
         {
             let mut table = write_txn.open_table(MESSAGES)?;
@@ -372,8 +352,7 @@ impl Database {
     pub fn list_messages(&self, session_id: &str) -> Result<Vec<StoredMessage>> {
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let read_txn = db.begin_read()?;
         let table = read_txn.open_table(MESSAGES)?;
         let mut messages = Vec::new();
@@ -392,8 +371,7 @@ impl Database {
     pub fn delete_messages_for_session(&self, session_id: &str) -> Result<()> {
         let db = self
             .inner
-            .try_lock()
-            .map_err(|_| anyhow::anyhow!("DB lock"))?;
+            .lock().unwrap();
         let write_txn = db.begin_write()?;
         {
             let mut table = write_txn.open_table(MESSAGES)?;

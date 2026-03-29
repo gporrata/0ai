@@ -1,4 +1,5 @@
 use crate::a2a::discovery::{DiscoveredAgent, MdnsDiscovery};
+extern crate shlex;
 use crate::a2a::server::A2aServer;
 use crate::db::{AgentSession, Database, McpServer, ModelConfig, Session, StoredMessage};
 use crate::llm::{all_known_models, build_provider, build_system_prompt, Message, ModelInfo, Tool};
@@ -29,12 +30,18 @@ pub struct App {
     // Session messages (in-memory for current session)
     pub session_messages: Vec<Message>,
     pub message_count: u64,
+    // Yolo mode: auto-approve shell commands until next LLM message is sent
+    pub yolo: bool,
 }
 
 pub enum AppEvent {
     LlmResponse(String),
     LlmError(String),
     StatusUpdate(String),
+    /// LLM wants to run a shell command — UI must confirm (or auto-approve in yolo mode)
+    ShellConfirm { command: String, reason: String },
+    /// Result of a shell command execution to feed back into conversation
+    ShellResult { command: String, output: String, exit_code: i32 },
 }
 
 impl App {
@@ -64,6 +71,7 @@ impl App {
             agent_name,
             session_messages: Vec::new(),
             message_count: 0,
+            yolo: false,
         }
     }
 
@@ -132,6 +140,22 @@ impl App {
                 AppEvent::StatusUpdate(msg) => {
                     self.ui.set_status(msg);
                 }
+                AppEvent::ShellConfirm { command, reason } => {
+                    self.ui.modal = crate::ui::Modal::ShellConfirm { command, reason };
+                }
+                AppEvent::ShellResult { command, output, exit_code } => {
+                    let display = format!("$ {}\n{}", command, output.trim());
+                    self.ui.push_chat("system", &display);
+                    // Feed result back into conversation
+                    let result_msg = format!(
+                        "Command `{}` exited with code {}.\nOutput:\n{}",
+                        command, exit_code, output.trim()
+                    );
+                    self.session_messages.push(Message {
+                        role: "user".to_string(),
+                        content: result_msg,
+                    });
+                }
             }
         }
     }
@@ -155,6 +179,19 @@ impl App {
     }
 
     pub fn send_message(&mut self, content: String) {
+        // Detect [yolo] prefix — enable yolo mode for this exchange
+        let (yolo_this, content) = if content.starts_with("[yolo]") {
+            (true, content.trim_start_matches("[yolo]").trim().to_string())
+        } else {
+            (false, content)
+        };
+        if yolo_this {
+            self.yolo = true;
+            self.ui.set_status("⚡ YOLO mode: commands will auto-execute this exchange".to_string());
+        } else {
+            self.yolo = false; // reset on every normal message
+        }
+
         let user_msg = Message {
             role: "user".to_string(),
             content: content.clone(),
@@ -187,6 +224,7 @@ impl App {
         let tx = self.response_tx.clone();
         let db = self.db.clone_handle();
         let mcp_mgr = Arc::clone(&self.mcp_manager);
+        let yolo = self.yolo;
 
         tokio::spawn(async move {
             let (mid, prov) = match (model_id, provider_name) {
@@ -230,8 +268,8 @@ impl App {
                 }
             };
 
-            // Get MCP tools
-            let tools: Vec<crate::llm::Tool> = {
+            // Get MCP tools + builtin run_shell_command
+            let mut tools: Vec<crate::llm::Tool> = {
                 let mgr = mcp_mgr.lock().await;
                 mgr.all_tools()
                     .await
@@ -243,6 +281,20 @@ impl App {
                     })
                     .collect()
             };
+            tools.push(Tool {
+                name: "run_shell_command".to_string(),
+                description: "Run a shell command on the user's local machine. \
+                    The user will be asked to confirm unless yolo mode is active. \
+                    Always provide a reason.".to_string(),
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "command": { "type": "string", "description": "The shell command to run" },
+                        "reason":  { "type": "string", "description": "Why this command is needed" }
+                    },
+                    "required": ["command", "reason"]
+                }),
+            });
 
             let _ = tx.send(AppEvent::StatusUpdate("Thinking...".to_string())).await;
 
@@ -251,26 +303,46 @@ impl App {
                 Ok(response) => {
                     // Handle tool calls
                     if !response.tool_calls.is_empty() {
-                        let mgr = mcp_mgr.lock().await;
                         for tc in &response.tool_calls {
-                            match mgr.call_tool_any(&tc.name, tc.input.clone()).await {
-                                Ok(result) => {
-                                    let result_str = serde_json::to_string_pretty(&result)
-                                        .unwrap_or_else(|_| result.to_string());
-                                    let _ = tx
-                                        .send(AppEvent::LlmResponse(format!(
-                                            "[Tool: {}]\n{}",
-                                            tc.name, result_str
-                                        )))
-                                        .await;
+                            if tc.name == "run_shell_command" {
+                                let cmd = tc.input["command"].as_str().unwrap_or("").to_string();
+                                let reason = tc.input["reason"].as_str().unwrap_or("").to_string();
+                                if yolo {
+                                    // Auto-execute in yolo mode
+                                    let output = run_shell_command_safe(&cmd).await;
+                                    let _ = tx.send(AppEvent::ShellResult {
+                                        command: cmd,
+                                        output: output.0,
+                                        exit_code: output.1,
+                                    }).await;
+                                } else {
+                                    // Request confirmation from UI
+                                    let _ = tx.send(AppEvent::ShellConfirm {
+                                        command: cmd,
+                                        reason,
+                                    }).await;
                                 }
-                                Err(e) => {
-                                    let _ = tx
-                                        .send(AppEvent::LlmError(format!(
-                                            "Tool {} failed: {}",
-                                            tc.name, e
-                                        )))
-                                        .await;
+                            } else {
+                                let mgr = mcp_mgr.lock().await;
+                                match mgr.call_tool_any(&tc.name, tc.input.clone()).await {
+                                    Ok(result) => {
+                                        let result_str = serde_json::to_string_pretty(&result)
+                                            .unwrap_or_else(|_| result.to_string());
+                                        let _ = tx
+                                            .send(AppEvent::LlmResponse(format!(
+                                                "[Tool: {}]\n{}",
+                                                tc.name, result_str
+                                            )))
+                                            .await;
+                                    }
+                                    Err(e) => {
+                                        let _ = tx
+                                            .send(AppEvent::LlmError(format!(
+                                                "Tool {} failed: {}",
+                                                tc.name, e
+                                            )))
+                                            .await;
+                                    }
                                 }
                             }
                         }
@@ -633,6 +705,52 @@ impl App {
                 }
             }
         }
+    }
+}
+
+/// Execute a shell command safely without invoking a shell binary.
+/// Returns (combined stdout+stderr, exit_code).
+pub async fn run_shell_command_safe(command: &str) -> (String, i32) {
+    // Detect shell operators that require a real shell to interpret
+    let needs_shell = command.contains('>') || command.contains('<')
+        || command.contains('|') || command.contains('&')
+        || command.contains(';') || command.contains('`')
+        || command.contains('$') || command.contains('~');
+
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+
+    let result = if needs_shell {
+        tokio::process::Command::new(&shell)
+            .arg("-c")
+            .arg(command)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .await
+    } else {
+        let parts = match shlex::split(command) {
+            Some(p) if !p.is_empty() => p,
+            _ => return (format!("Failed to parse command: {}", command), -1),
+        };
+        let (bin, args) = parts.split_first().unwrap();
+        tokio::process::Command::new(bin)
+            .args(args)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .await
+    };
+    match result {
+        Ok(out) => {
+            let mut combined = String::from_utf8_lossy(&out.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+            if !stderr.is_empty() {
+                combined.push_str(&stderr);
+            }
+            let code = out.status.code().unwrap_or(-1);
+            (combined, code)
+        }
+        Err(e) => (format!("Failed to run command: {}", e), -1),
     }
 }
 

@@ -62,6 +62,10 @@ I want to create a configurable agentic ai cli written in rust.
     - user would be prompted to define input flow of:
       - {name} {command} {args?} {env args in the form of [key]=[value]?}
 
+# Builtin MCPs
+- `run_shell_command` — allows the LLM to propose shell commands; user is shown the command and reason and must confirm before execution. Commands are run directly (no shell interpolation) for safety.
+- prefix a message with `[yolo]` to auto-approve all shell commands for that exchange without confirmation prompts.
+
 # OpenAI-Compat APIs
 - support any LLM provider that exposes an OpenAI-compatible chat completions endpoint.
 - provider endpoint and api key are configured via /model and stored in the database.
