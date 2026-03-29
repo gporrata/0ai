@@ -76,4 +76,4 @@ I want to create a configurable agentic ai cli written in rust.
 
 # Prompting
 - The prompt character is colored `#03a1fc`. By default it is `>` (plain ASCII).
-- `/nerd` switches the prompt to a Nerd Font glyph (default U+F186C); `/nerd {hexcode}` sets a specific glyph (e.g. `/nerd f0b0`); `/nonerd` reverts to `>`. Both the enabled state and chosen glyph persist across sessions.
+- `/nerd` switches the prompt to a Nerd Font glyph (default U+F083F); `/nerd {hexcode}` sets a specific glyph (e.g. `/nerd f0b0`); `/nonerd` reverts to `>`. Both the enabled state and chosen glyph persist across sessions.

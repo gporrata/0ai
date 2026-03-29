@@ -40,9 +40,16 @@ pub enum AppEvent {
     LlmError(String),
     StatusUpdate(String),
     /// LLM wants to run a shell command — UI must confirm (or auto-approve in yolo mode)
-    ShellConfirm { command: String, reason: String },
+    ShellConfirm {
+        command: String,
+        reason: String,
+    },
     /// Result of a shell command execution to feed back into conversation
-    ShellResult { command: String, output: String, exit_code: i32 },
+    ShellResult {
+        command: String,
+        output: String,
+        exit_code: i32,
+    },
 }
 
 impl App {
@@ -74,7 +81,7 @@ impl App {
             message_count: 0,
             yolo: false,
             nerd_fonts: false,
-            nerd_char: '\u{f186C}',
+            nerd_char: '\u{F083F}',
         }
     }
 
@@ -164,12 +171,18 @@ impl App {
                 AppEvent::ShellConfirm { command, reason } => {
                     self.ui.pending_shell_confirm = Some((command, reason));
                 }
-                AppEvent::ShellResult { command, output, exit_code } => {
+                AppEvent::ShellResult {
+                    command,
+                    output,
+                    exit_code,
+                } => {
                     self.ui.push_chat("system", output.trim());
                     // Feed result back into conversation
                     let result_msg = format!(
                         "Command `{}` exited with code {}.\nOutput:\n{}",
-                        command, exit_code, output.trim()
+                        command,
+                        exit_code,
+                        output.trim()
                     );
                     self.session_messages.push(Message {
                         role: "user".to_string(),
@@ -205,13 +218,17 @@ impl App {
     pub fn send_message(&mut self, content: String) {
         // Detect [yolo] prefix — enable yolo mode for this exchange
         let (yolo_this, content) = if content.starts_with("[yolo]") {
-            (true, content.trim_start_matches("[yolo]").trim().to_string())
+            (
+                true,
+                content.trim_start_matches("[yolo]").trim().to_string(),
+            )
         } else {
             (false, content)
         };
         if yolo_this {
             self.yolo = true;
-            self.ui.set_status("⚡ YOLO mode: commands will auto-execute this exchange".to_string());
+            self.ui
+                .set_status("⚡ YOLO mode: commands will auto-execute this exchange".to_string());
         } else {
             self.yolo = false; // reset on every normal message
         }
@@ -279,18 +296,14 @@ impl App {
                 return;
             }
 
-            let provider = match build_provider(
-                &mid,
-                &prov,
-                api_key.as_deref(),
-                endpoint.as_deref(),
-            ) {
-                Ok(p) => p,
-                Err(e) => {
-                    let _ = tx.send(AppEvent::LlmError(e.to_string())).await;
-                    return;
-                }
-            };
+            let provider =
+                match build_provider(&mid, &prov, api_key.as_deref(), endpoint.as_deref()) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        let _ = tx.send(AppEvent::LlmError(e.to_string())).await;
+                        return;
+                    }
+                };
 
             // Get MCP tools + builtin run_shell_command
             let mut tools: Vec<crate::llm::Tool> = {
@@ -309,7 +322,8 @@ impl App {
                 name: "run_shell_command".to_string(),
                 description: "Run a shell command on the user's local machine. \
                     The user will be asked to confirm unless yolo mode is active. \
-                    Always provide a reason.".to_string(),
+                    Always provide a reason."
+                    .to_string(),
                 input_schema: serde_json::json!({
                     "type": "object",
                     "properties": {
@@ -320,7 +334,9 @@ impl App {
                 }),
             });
 
-            let _ = tx.send(AppEvent::StatusUpdate("Thinking...".to_string())).await;
+            let _ = tx
+                .send(AppEvent::StatusUpdate("Thinking...".to_string()))
+                .await;
 
             let sys = build_system_prompt();
             match provider.complete(&messages, &tools, Some(&sys)).await {
@@ -334,17 +350,21 @@ impl App {
                                 if yolo {
                                     // Auto-execute in yolo mode
                                     let output = run_shell_command_safe(&cmd).await;
-                                    let _ = tx.send(AppEvent::ShellResult {
-                                        command: cmd,
-                                        output: output.0,
-                                        exit_code: output.1,
-                                    }).await;
+                                    let _ = tx
+                                        .send(AppEvent::ShellResult {
+                                            command: cmd,
+                                            output: output.0,
+                                            exit_code: output.1,
+                                        })
+                                        .await;
                                 } else {
                                     // Request confirmation from UI
-                                    let _ = tx.send(AppEvent::ShellConfirm {
-                                        command: cmd,
-                                        reason,
-                                    }).await;
+                                    let _ = tx
+                                        .send(AppEvent::ShellConfirm {
+                                            command: cmd,
+                                            reason,
+                                        })
+                                        .await;
                                 }
                             } else {
                                 let mgr = mcp_mgr.lock().await;
@@ -390,9 +410,7 @@ impl App {
     pub fn current_session_name(&self) -> String {
         if let Some(ref id) = self.current_session_id {
             if let Ok(Some(session)) = self.db.get_session(id) {
-                return session
-                    .name
-                    .unwrap_or_else(|| "ephemeral".to_string());
+                return session.name.unwrap_or_else(|| "ephemeral".to_string());
             }
         }
         "ephemeral".to_string()
@@ -506,9 +524,7 @@ impl App {
 
         let config = ModelConfig {
             id: model_id.to_string(),
-            provider: known_info
-                .map(|m| m.provider.clone())
-                .unwrap_or_default(),
+            provider: known_info.map(|m| m.provider.clone()).unwrap_or_default(),
             display_name: known_info
                 .map(|m| m.display_name.clone())
                 .unwrap_or_else(|| model_id.to_string()),
@@ -542,13 +558,7 @@ impl App {
         self.db.list_agent_sessions().unwrap_or_default()
     }
 
-    pub fn create_agent_session(
-        &mut self,
-        name: String,
-        host: String,
-        ip: String,
-        port: u16,
-    ) {
+    pub fn create_agent_session(&mut self, name: String, host: String, ip: String, port: u16) {
         let session = AgentSession {
             id: Uuid::new_v4().to_string(),
             remote_name: name.clone(),
@@ -666,7 +676,10 @@ impl App {
                 Ok(l) => l,
                 Err(e) => {
                     let _ = tx
-                        .send(AppEvent::StatusUpdate(format!("Identity listener error: {}", e)))
+                        .send(AppEvent::StatusUpdate(format!(
+                            "Identity listener error: {}",
+                            e
+                        )))
                         .await;
                     return;
                 }
@@ -768,7 +781,11 @@ pub async fn run_shell_command_safe(command: &str) -> (String, i32) {
 
 // Extension: McpManager helper to call any tool by name across all servers
 impl McpManager {
-    pub async fn call_tool_any(&self, tool_name: &str, input: serde_json::Value) -> anyhow::Result<serde_json::Value> {
+    pub async fn call_tool_any(
+        &self,
+        tool_name: &str,
+        input: serde_json::Value,
+    ) -> anyhow::Result<serde_json::Value> {
         // Find which server has this tool
         for (server_name, client) in &self.clients {
             let client_tools: Vec<crate::mcp::McpTool> = client.list_tools().await;
