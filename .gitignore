@@ -1,0 +1,7 @@
+.*
+!.gitignore
+target/
+
+*.tbz2
+*.zip
+*.log

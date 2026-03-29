@@ -1,0 +1,30 @@
+[package]
+name = "zeroai"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "0ai"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+redb = "2"
+ratatui = "0.29"
+crossterm = "0.28"
+reqwest = { version = "0.12", features = ["json", "stream"] }
+axum = { version = "0.7", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+mdns-sd = "0.11"
+uuid = { version = "1", features = ["v4"] }
+anyhow = "1"
+async-trait = "0.1"
+open = "5"
+futures = "0.3"
+tokio-util = { version = "0.7", features = ["codec"] }
+bytes = "1"
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rand = "0.8"
