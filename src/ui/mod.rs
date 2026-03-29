@@ -107,7 +107,6 @@ pub fn run(app: &mut App) -> Result<()> {
                 wait_for_responses(app)?;
             }
             ParsedInput::Message(msg) => {
-                app.ui.push_chat("user", &msg);
                 app.send_message(msg);
                 wait_for_responses(app)?;
             }
