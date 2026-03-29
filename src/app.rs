@@ -74,7 +74,7 @@ impl App {
             message_count: 0,
             yolo: false,
             nerd_fonts: false,
-            nerd_char: '\u{f0ec}',
+            nerd_char: '\u{f186C}',
         }
     }
 
