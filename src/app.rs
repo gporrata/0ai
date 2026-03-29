@@ -31,6 +31,7 @@ pub struct App {
     pub message_count: u64,
     // Yolo mode: auto-approve shell commands until next LLM message is sent
     pub yolo: bool,
+    pub nerd_fonts: bool,
 }
 
 pub enum AppEvent {
@@ -71,6 +72,7 @@ impl App {
             session_messages: Vec::new(),
             message_count: 0,
             yolo: false,
+            nerd_fonts: false,
         }
     }
 
@@ -81,6 +83,11 @@ impl App {
                 self.active_model_id = Some(model_id);
                 self.active_model_provider = Some(provider);
             }
+        }
+
+        // Load nerd fonts setting
+        if let Ok(Some(v)) = self.db.get_config::<String>("nerd_fonts") {
+            self.nerd_fonts = v == "true";
         }
 
         // Clean up ephemeral sessions from previous runs

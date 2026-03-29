@@ -9,6 +9,8 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("marco", "Toggle mDNS advertising"),
     ("polo", "Interactive agent discovery / sessions"),
     ("mcp", "Manage MCP servers"),
+    ("nerd", "Use Nerd Font prompt character"),
+    ("nonerd", "Use plain > prompt character"),
 ];
 
 /// Given a partial command string (without /), return matching commands.

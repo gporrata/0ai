@@ -68,7 +68,8 @@ pub fn run(app: &mut App) -> Result<()> {
 
     let stdin = io::stdin();
     loop {
-        print!("{} ", style(">").bold().dim());
+        let prompt_char = prompt_char(app.nerd_fonts);
+        print!("{} ", prompt_char);
         io::stdout().flush()?;
 
         let mut input = String::new();
@@ -186,6 +187,16 @@ fn dispatch_command(cmd: &str, rest: &str, app: &mut App) -> Result<Option<bool>
         }
         Some("mcp") => {
             cmd_mcp_list(app)?;
+        }
+        Some("nerd") => {
+            app.nerd_fonts = true;
+            let _ = app.db.set_config("nerd_fonts", &"true".to_string());
+            println!("{} Nerd Font prompt enabled.", style(">>").yellow());
+        }
+        Some("nonerd") => {
+            app.nerd_fonts = false;
+            let _ = app.db.set_config("nerd_fonts", &"false".to_string());
+            println!("{} Plain prompt enabled.", style(">>").yellow());
         }
         None => {
             println!(
@@ -421,4 +432,14 @@ fn parse_and_save_mcp(app: &mut App, input: &str) {
     };
     app.save_mcp_server(server);
     println!("{} Saved MCP server: {}", style(">>").yellow(), name);
+}
+
+// ── Prompt ────────────────────────────────────────────────────────────────────
+
+fn prompt_char(nerd: bool) -> String {
+    // #e600e6 via ANSI true-color escape
+    let color_on = "\x1b[38;2;230;0;230m";
+    let color_off = "\x1b[0m";
+    let ch = if nerd { "\u{f09e4}" } else { ">" };
+    format!("{}{}{}", color_on, ch, color_off)
 }

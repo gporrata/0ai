@@ -72,3 +72,7 @@ I want to create a configurable agentic ai cli written in rust.
 
 # Shell access
 - prefix input with `!` to run a shell command directly (e.g. `!ls -la`). output appears in the chat window.
+
+# Prompting
+- The prompt character is colored `#e600e6`. By default it is `>` (plain ASCII).
+- `/nerd` switches the prompt to a Nerd Font glyph (U+F09E4); `/nonerd` reverts it to `>`. Both settings persist across sessions.
