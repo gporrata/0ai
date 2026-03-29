@@ -10,8 +10,8 @@ path = "src/main.rs"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 redb = "2"
-ratatui = "0.29"
-crossterm = "0.28"
+dialoguer = "0.11"
+console = "0.15"
 reqwest = { version = "0.12", features = ["json", "stream"] }
 axum = { version = "0.7", features = ["json"] }
 serde = { version = "1", features = ["derive"] }

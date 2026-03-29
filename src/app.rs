@@ -136,12 +136,16 @@ impl App {
                 }
                 AppEvent::LlmError(err) => {
                     self.ui.push_chat("system", &format!("Error: {}", err));
+                    self.ui.response_complete = true;
                 }
                 AppEvent::StatusUpdate(msg) => {
-                    self.ui.set_status(msg);
+                    self.ui.set_status(msg.clone());
+                    if msg == "Ready" || msg == "Error" {
+                        self.ui.response_complete = true;
+                    }
                 }
                 AppEvent::ShellConfirm { command, reason } => {
-                    self.ui.modal = crate::ui::Modal::ShellConfirm { command, reason };
+                    self.ui.pending_shell_confirm = Some((command, reason));
                 }
                 AppEvent::ShellResult { command, output, exit_code } => {
                     let display = format!("$ {}\n{}", command, output.trim());
@@ -155,6 +159,10 @@ impl App {
                         role: "user".to_string(),
                         content: result_msg,
                     });
+                    self.ui.shells_pending = self.ui.shells_pending.saturating_sub(1);
+                    if self.ui.shells_pending == 0 {
+                        self.ui.response_complete = true;
+                    }
                 }
             }
         }
