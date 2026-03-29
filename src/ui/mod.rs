@@ -438,7 +438,7 @@ fn parse_and_save_mcp(app: &mut App, input: &str) {
 
 fn prompt_char(nerd: bool) -> String {
     // #e600e6 via ANSI true-color escape
-    let color_on = "\x1b[38;2;230;0;230m";
+    let color_on = "\x1b[38;2;3;161;252m";
     let color_off = "\x1b[0m";
     let ch = if nerd { "\u{f09e4}" } else { ">" };
     format!("{}{}{}", color_on, ch, color_off)
