@@ -145,17 +145,18 @@ impl App {
                     self.ui.response_complete = true;
                 }
                 AppEvent::StatusUpdate(msg) => {
-                    self.ui.set_status(msg.clone());
                     if msg == "Ready" || msg == "Error" {
+                        self.ui.clear_status();
                         self.ui.response_complete = true;
+                    } else {
+                        self.ui.set_status(msg);
                     }
                 }
                 AppEvent::ShellConfirm { command, reason } => {
                     self.ui.pending_shell_confirm = Some((command, reason));
                 }
                 AppEvent::ShellResult { command, output, exit_code } => {
-                    let display = format!("$ {}\n{}", command, output.trim());
-                    self.ui.push_chat("system", &display);
+                    self.ui.push_chat("system", output.trim());
                     // Feed result back into conversation
                     let result_msg = format!(
                         "Command `{}` exited with code {}.\nOutput:\n{}",

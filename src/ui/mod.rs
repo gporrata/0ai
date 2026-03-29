@@ -23,6 +23,7 @@ pub struct Ui {
     pub pending_shell_confirm: Option<(String, String)>, // (command, reason)
     pub response_complete: bool,
     pub shells_pending: u32,
+    status_visible: bool,
 }
 
 impl Ui {
@@ -32,6 +33,7 @@ impl Ui {
             pending_shell_confirm: None,
             response_complete: false,
             shells_pending: 0,
+            status_visible: false,
         }
     }
 
@@ -40,17 +42,28 @@ impl Ui {
             role: role.to_string(),
             content: content.to_string(),
         });
+        self.clear_status();
         match role {
             "user" => println!("{} {}", style("You:").cyan().bold(), content),
             "assistant" => println!("{} {}", style("AI:").green().bold(), content),
-            _ => println!("{} {}", style(">>").yellow(), content),
+            _ => println!("{}", content),
         }
     }
 
     pub fn set_status(&mut self, msg: impl Into<String>) {
         let msg = msg.into();
         if !msg.is_empty() && msg != "Ready" && msg != "Error" {
-            println!("{}", style(format!(".. {}", msg)).dim());
+            print!("{}", style(format!(".. {} ..", msg)).dim());
+            let _ = io::stdout().flush();
+            self.status_visible = true;
+        }
+    }
+
+    pub fn clear_status(&mut self) {
+        if self.status_visible {
+            print!("\r\x1b[2K");
+            let _ = io::stdout().flush();
+            self.status_visible = false;
         }
     }
 }
@@ -92,7 +105,6 @@ pub fn run(app: &mut App) -> Result<()> {
                 }
             }
             ParsedInput::Shell(cmd) => {
-                println!("{}", style(format!("$ {}", cmd)).dim());
                 let tx = app.response_tx.clone();
                 let cmd_clone = cmd.clone();
                 tokio::spawn(async move {
@@ -123,11 +135,12 @@ fn wait_for_responses(app: &mut App) -> Result<()> {
         app.drain_responses();
 
         if let Some((command, reason)) = app.ui.pending_shell_confirm.take() {
-            println!();
+            app.ui.clear_status();
             let confirmed = Confirm::with_theme(&ColorfulTheme::default())
-                .with_prompt(format!("Run: {}\nReason: {}", command, reason))
+                .with_prompt(format!("run '{}' — {}?", command, reason))
                 .default(false)
                 .interact()?;
+            let _ = console::Term::stdout().clear_last_lines(1);
             if confirmed {
                 app.ui.shells_pending += 1;
                 app.ui.response_complete = false;
@@ -143,8 +156,6 @@ fn wait_for_responses(app: &mut App) -> Result<()> {
                         })
                         .await;
                 });
-            } else {
-                println!("{} Shell command cancelled.", style(">>").yellow());
             }
         }
 
