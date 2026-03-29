@@ -289,6 +289,18 @@ fn handle_key_main(key: KeyEvent, app: &mut App) -> Result<bool> {
                         return Ok(quit);
                     }
                 }
+                ParsedInput::Shell(cmd) => {
+                    app.ui.push_chat("system", &format!("$ {}", cmd));
+                    let tx = app.response_tx.clone();
+                    tokio::spawn(async move {
+                        let (output, code) = crate::app::run_shell_command_safe(&cmd).await;
+                        let _ = tx.send(crate::app::AppEvent::ShellResult {
+                            command: cmd,
+                            output,
+                            exit_code: code,
+                        }).await;
+                    });
+                }
                 ParsedInput::Message(msg) => {
                     app.ui.push_chat("user", &msg);
                     app.send_message(msg);

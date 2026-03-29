@@ -69,3 +69,6 @@ I want to create a configurable agentic ai cli written in rust.
 # OpenAI-Compat APIs
 - support any LLM provider that exposes an OpenAI-compatible chat completions endpoint.
 - provider endpoint and api key are configured via /model and stored in the database.
+
+# Shell access
+- prefix input with `!` to run a shell command directly (e.g. `!ls -la`). output appears in the chat window.

@@ -40,6 +40,7 @@ pub fn resolve_command(partial: &str) -> Option<&'static str> {
 
 pub enum ParsedInput {
     Command(String, String), // (command, rest_of_line)
+    Shell(String),           // !<shell command>
     Message(String),
     Empty,
 }
@@ -48,6 +49,10 @@ pub fn parse_input(input: &str) -> ParsedInput {
     let trimmed = input.trim();
     if trimmed.is_empty() {
         return ParsedInput::Empty;
+    }
+    if trimmed.starts_with('!') {
+        let cmd = trimmed[1..].trim().to_string();
+        return if cmd.is_empty() { ParsedInput::Empty } else { ParsedInput::Shell(cmd) };
     }
     if trimmed.starts_with('/') {
         let without_slash = &trimmed[1..];
