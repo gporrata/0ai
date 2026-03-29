@@ -61,3 +61,7 @@ I want to create a configurable agentic ai cli written in rust.
   - 2. new entry
     - user would be prompted to define input flow of:
       - {name} {command} {args?} {env args in the form of [key]=[value]?}
+
+# OpenAI-Compat APIs
+- support any LLM provider that exposes an OpenAI-compatible chat completions endpoint.
+- provider endpoint and api key are configured via /model and stored in the database.

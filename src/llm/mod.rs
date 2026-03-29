@@ -36,7 +36,45 @@ pub struct ToolCall {
 #[async_trait]
 pub trait LlmProvider: Send + Sync {
     fn name(&self) -> &str;
-    async fn complete(&self, messages: &[Message], tools: &[Tool]) -> Result<LlmResponse>;
+    async fn complete(
+        &self,
+        messages: &[Message],
+        tools: &[Tool],
+        system_prompt: Option<&str>,
+    ) -> Result<LlmResponse>;
+}
+
+/// Gather OS/environment context for the system prompt.
+pub fn build_system_prompt() -> String {
+    let os = std::env::consts::OS;
+    let arch = std::env::consts::ARCH;
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "unknown".to_string());
+    let username = std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .unwrap_or_else(|_| "unknown".to_string());
+    let hostname = std::fs::read_to_string("/etc/hostname")
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    let hostname = if hostname.is_empty() { "unknown".to_string() } else { hostname };
+
+    // Linux distro from /etc/os-release
+    let distro = std::fs::read_to_string("/etc/os-release")
+        .unwrap_or_default()
+        .lines()
+        .find(|l| l.starts_with("PRETTY_NAME="))
+        .map(|l| l.trim_start_matches("PRETTY_NAME=").trim_matches('"').to_string())
+        .unwrap_or_else(|| os.to_string());
+
+    format!(
+        "You are a helpful AI assistant running on the user's local machine.\n\
+         System information:\n\
+         - OS: {distro}\n\
+         - Kernel/platform: {os} {arch}\n\
+         - Shell: {shell}\n\
+         - User: {username}@{hostname}\n\
+         When providing commands or file paths, use syntax appropriate for this system."
+    )
 }
 
 #[derive(Debug, Clone)]

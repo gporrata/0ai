@@ -53,6 +53,8 @@ struct AnthropicRequest {
     messages: Vec<AnthropicMessage>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     tools: Vec<AnthropicTool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    system: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -91,7 +93,7 @@ impl LlmProvider for ClaudeCodeProvider {
         "Claude Code"
     }
 
-    async fn complete(&self, messages: &[Message], tools: &[Tool]) -> Result<LlmResponse> {
+    async fn complete(&self, messages: &[Message], tools: &[Tool], system_prompt: Option<&str>) -> Result<LlmResponse> {
         let token = read_access_token()?;
 
         let anthropic_messages: Vec<AnthropicMessage> = messages
@@ -116,6 +118,7 @@ impl LlmProvider for ClaudeCodeProvider {
             max_tokens: 4096,
             messages: anthropic_messages,
             tools: anthropic_tools,
+            system: system_prompt.map(|s| s.to_string()),
         };
 
         let response = self

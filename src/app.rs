@@ -1,7 +1,7 @@
 use crate::a2a::discovery::{DiscoveredAgent, MdnsDiscovery};
 use crate::a2a::server::A2aServer;
 use crate::db::{AgentSession, Database, McpServer, ModelConfig, Session, StoredMessage};
-use crate::llm::{all_known_models, build_provider, Message, ModelInfo, Tool};
+use crate::llm::{all_known_models, build_provider, build_system_prompt, Message, ModelInfo, Tool};
 use crate::mcp::McpManager;
 use crate::ui::Ui;
 use chrono::Utc;
@@ -246,7 +246,8 @@ impl App {
 
             let _ = tx.send(AppEvent::StatusUpdate("Thinking...".to_string())).await;
 
-            match provider.complete(&messages, &tools).await {
+            let sys = build_system_prompt();
+            match provider.complete(&messages, &tools, Some(&sys)).await {
                 Ok(response) => {
                     // Handle tool calls
                     if !response.tool_calls.is_empty() {

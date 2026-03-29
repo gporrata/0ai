@@ -88,14 +88,18 @@ impl LlmProvider for OpenAiCompatProvider {
         &self.provider_name
     }
 
-    async fn complete(&self, messages: &[Message], tools: &[Tool]) -> Result<LlmResponse> {
-        let oai_messages: Vec<OaiMessage> = messages
-            .iter()
-            .map(|m| OaiMessage {
-                role: m.role.clone(),
-                content: m.content.clone(),
-            })
-            .collect();
+    async fn complete(&self, messages: &[Message], tools: &[Tool], system_prompt: Option<&str>) -> Result<LlmResponse> {
+        let mut oai_messages: Vec<OaiMessage> = Vec::new();
+        if let Some(sys) = system_prompt {
+            oai_messages.push(OaiMessage {
+                role: "system".to_string(),
+                content: sys.to_string(),
+            });
+        }
+        oai_messages.extend(messages.iter().map(|m| OaiMessage {
+            role: m.role.clone(),
+            content: m.content.clone(),
+        }));
 
         let oai_tools: Vec<OaiTool> = tools
             .iter()

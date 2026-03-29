@@ -50,14 +50,18 @@ impl LlmProvider for OllamaProvider {
         "Ollama"
     }
 
-    async fn complete(&self, messages: &[Message], _tools: &[Tool]) -> Result<LlmResponse> {
-        let ollama_messages: Vec<OllamaMessage> = messages
-            .iter()
-            .map(|m| OllamaMessage {
-                role: m.role.clone(),
-                content: m.content.clone(),
-            })
-            .collect();
+    async fn complete(&self, messages: &[Message], _tools: &[Tool], system_prompt: Option<&str>) -> Result<LlmResponse> {
+        let mut ollama_messages: Vec<OllamaMessage> = Vec::new();
+        if let Some(sys) = system_prompt {
+            ollama_messages.push(OllamaMessage {
+                role: "system".to_string(),
+                content: sys.to_string(),
+            });
+        }
+        ollama_messages.extend(messages.iter().map(|m| OllamaMessage {
+            role: m.role.clone(),
+            content: m.content.clone(),
+        }));
 
         let request = OllamaRequest {
             model: self.model.clone(),
