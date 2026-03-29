@@ -2355,7 +2355,6 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "shlex",
  "tokio",
  "tokio-util",
  "tracing",

@@ -1,5 +1,4 @@
 use crate::a2a::discovery::{DiscoveredAgent, MdnsDiscovery};
-extern crate shlex;
 use crate::a2a::server::A2aServer;
 use crate::db::{AgentSession, Database, McpServer, ModelConfig, Session, StoredMessage};
 use crate::llm::{all_known_models, build_provider, build_system_prompt, Message, ModelInfo, Tool};
@@ -719,35 +718,15 @@ impl App {
 /// Execute a shell command safely without invoking a shell binary.
 /// Returns (combined stdout+stderr, exit_code).
 pub async fn run_shell_command_safe(command: &str) -> (String, i32) {
-    // Detect shell operators that require a real shell to interpret
-    let needs_shell = command.contains('>') || command.contains('<')
-        || command.contains('|') || command.contains('&')
-        || command.contains(';') || command.contains('`')
-        || command.contains('$') || command.contains('~');
-
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
 
-    let result = if needs_shell {
-        tokio::process::Command::new(&shell)
-            .arg("-c")
-            .arg(command)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .output()
-            .await
-    } else {
-        let parts = match shlex::split(command) {
-            Some(p) if !p.is_empty() => p,
-            _ => return (format!("Failed to parse command: {}", command), -1),
-        };
-        let (bin, args) = parts.split_first().unwrap();
-        tokio::process::Command::new(bin)
-            .args(args)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .output()
-            .await
-    };
+    let result = tokio::process::Command::new(&shell)
+        .arg("-c")
+        .arg(command)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .await;
     match result {
         Ok(out) => {
             let mut combined = String::from_utf8_lossy(&out.stdout).to_string();
